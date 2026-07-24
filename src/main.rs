@@ -1,4 +1,18 @@
-#[derive(Debug)]
+use clap::{Parser, Subcommand};
+
+#[derive(Subcommand)]
+enum Commands {
+    Decode { encoded_value: String },
+}
+
+#[derive(Parser)]
+#[command(version, about = "CLI for torrent written in rust")]
+struct Args {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Debug, PartialEq)]
 enum DecodeBencodeError {
     MissingColon,
     InvalidValue,
@@ -20,8 +34,34 @@ impl std::fmt::Display for DecodeBencodeError {
 
 impl std::error::Error for DecodeBencodeError {}
 
-fn decode_bencode(bencoded_value: &str) -> Result<String, DecodeBencodeError> {
-    if bencoded_value.chars().nth(0).unwrap().is_ascii_digit() {
+#[derive(Debug, PartialEq)]
+enum BencodeValue {
+    String(String),
+    Int(i64),
+    List(Vec<BencodeValue>),
+}
+
+impl BencodeValue {
+    fn encoded_length(&self) -> usize {
+        match self {
+            BencodeValue::String(s) => s.len() + s.chars().count().to_string().len() + 1,
+            BencodeValue::Int(i) => i.to_string().len() + 2,
+            BencodeValue::List(list) => {
+                let inner: usize = list.iter().map(|v| v.encoded_length()).sum();
+                inner + 2
+            }
+        }
+    }
+}
+
+fn decode_bencode(bencoded_value: &str) -> Result<BencodeValue, DecodeBencodeError> {
+    if bencoded_value.is_empty() {
+        return Err(DecodeBencodeError::InvalidValue);
+    }
+
+    let first_char = bencoded_value.chars().next().unwrap();
+
+    if first_char.is_ascii_digit() {
         let colon_index = bencoded_value
             .find(':')
             .ok_or(DecodeBencodeError::MissingColon)?;
@@ -29,37 +69,43 @@ fn decode_bencode(bencoded_value: &str) -> Result<String, DecodeBencodeError> {
             .parse::<usize>()
             .map_err(|_| DecodeBencodeError::ParseLength)?;
         let start = colon_index + 1;
-        Ok(bencoded_value[start..start + length].to_string())
-    } else if bencoded_value.chars().nth(0).unwrap() == 'i'
-        && bencoded_value.chars().last().unwrap() == 'e'
-    {
+
+        if start + length > bencoded_value.len() {
+            return Err(DecodeBencodeError::InvalidValue);
+        }
+
+        Ok(BencodeValue::String(
+            bencoded_value[start..start + length].to_string(),
+        ))
+    } else if first_char == 'i' && bencoded_value.ends_with('e') {
         let value = bencoded_value[1..bencoded_value.len() - 1]
             .parse::<i64>()
             .map_err(|_| DecodeBencodeError::ParseIntError)?;
-        Ok(value.to_string())
+        Ok(BencodeValue::Int(value))
+    } else if first_char == 'l' && bencoded_value.ends_with('e') {
+        let mut list = Vec::new();
+        let mut pos = 1;
+        let end = bencoded_value.len() - 1;
+
+        while pos < end {
+            let element = decode_bencode(&bencoded_value[pos..])?;
+            pos += element.encoded_length();
+            list.push(element);
+        }
+
+        Ok(BencodeValue::List(list))
     } else {
         Err(DecodeBencodeError::InvalidValue)
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = std::env::args().collect::<Vec<String>>();
+    let args = Args::parse();
 
-    if args.len() < 3 {
-        eprintln!("Usage: {} <command> <args>", args.get(0).unwrap());
-        return Ok(());
-    }
-
-    let command = args.get(1).unwrap();
-
-    match command.as_str() {
-        "decode" => {
-            let encoded_str = args.get(2).unwrap();
-            let decoded_str = decode_bencode(encoded_str)?;
-            dbg!(decoded_str);
-        }
-        _ => {
-            println!("invalid command");
+    match args.command {
+        Commands::Decode { encoded_value } => {
+            let decoded_value = decode_bencode(&encoded_value)?;
+            dbg!(decoded_value);
         }
     }
 
