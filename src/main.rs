@@ -5,7 +5,8 @@ mod torrent;
 use clap::Parser;
 use cli::{Args, Commands};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
@@ -16,6 +17,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Info { torrent_file } => {
             let info = torrent::info(&torrent_file);
             info.print();
+        }
+        Commands::Peers { torrent_file } => {
+            torrent::peers(&torrent_file).await?;
         }
     }
 

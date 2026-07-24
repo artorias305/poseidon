@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 pub enum Commands {
     Decode { encoded_value: String },
     Info { torrent_file: String },
+    Peers { torrent_file: String },
 }
 
 #[derive(Parser)]
