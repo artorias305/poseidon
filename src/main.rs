@@ -19,7 +19,10 @@ async fn main() -> anyhow::Result<()> {
             info.print();
         }
         Commands::Peers { torrent_file } => {
-            torrent::peers(&torrent_file).await?;
+            let peer_response = torrent::peers(&torrent_file).await?;
+            for peer in peer_response.peers {
+                println!("{}", peer);
+            }
         }
     }
 
