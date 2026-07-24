@@ -7,6 +7,7 @@ pub enum DecodeError {
     ParseLength,
     ParseIntError,
     MissingTerminatingE,
+    InvalidUtf8,
 }
 
 impl std::fmt::Display for DecodeError {
@@ -17,6 +18,7 @@ impl std::fmt::Display for DecodeError {
             DecodeError::ParseLength => "failed to parse bencoded value length",
             DecodeError::ParseIntError => "failed to parse int",
             DecodeError::MissingTerminatingE => "couldn't find terminating e",
+            DecodeError::InvalidUtf8 => "invalid utf8",
         };
         write!(f, "{}", msg)
     }
@@ -32,9 +34,9 @@ pub enum BencodeValue {
     Map(BTreeMap<String, BencodeValue>),
 }
 
-fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
+fn decode_inner(input: &[u8]) -> Result<(BencodeValue, usize), DecodeError> {
     let mut start = 0;
-    while start < input.len() && matches!(input.as_bytes()[start], b' ' | b'\n' | b'\r' | b'\t') {
+    while start < input.len() && matches!(input[start], b' ' | b'\n' | b'\r' | b'\t') {
         start += 1;
     }
     let input = &input[start..];
@@ -43,11 +45,15 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
         return Err(DecodeError::InvalidValue);
     }
 
-    match input.as_bytes()[0] {
+    match input[0] {
         b'0'..=b'9' => {
-            let colon = input.find(':').ok_or(DecodeError::MissingColon)?;
+            let colon = input
+                .iter()
+                .position(|&b| b == b':')
+                .ok_or(DecodeError::MissingColon)?;
 
-            let len = input[..colon]
+            let len = std::str::from_utf8(&input[..colon])
+                .map_err(|_| DecodeError::InvalidUtf8)?
                 .parse::<usize>()
                 .map_err(|_| DecodeError::ParseLength)?;
 
@@ -58,18 +64,21 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
                 return Err(DecodeError::InvalidValue);
             }
 
-            Ok((
-                BencodeValue::String(input[content_start..end].to_string()),
-                end + start,
-            ))
+            let s = std::str::from_utf8(&input[content_start..end])
+                .map_err(|_| DecodeError::InvalidUtf8)?
+                .to_owned();
+
+            Ok((BencodeValue::String(s), end + start))
         }
 
         b'i' => {
             let e = input[1..]
-                .find('e')
+                .iter()
+                .position(|&b| b == b'e')
                 .ok_or(DecodeError::MissingTerminatingE)?;
 
-            let value = input[1..1 + e]
+            let value = std::str::from_utf8(&input[1..1 + e])
+                .map_err(|_| DecodeError::InvalidUtf8)?
                 .parse::<i64>()
                 .map_err(|_| DecodeError::ParseIntError)?;
 
@@ -81,9 +90,7 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
             let mut pos = 1;
 
             loop {
-                while pos < input.len()
-                    && matches!(input.as_bytes()[pos], b' ' | b'\n' | b'\r' | b'\t')
-                {
+                while pos < input.len() && matches!(input[pos], b' ' | b'\n' | b'\r' | b'\t') {
                     pos += 1
                 }
 
@@ -91,7 +98,7 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
                     return Err(DecodeError::MissingTerminatingE);
                 }
 
-                if input.as_bytes()[pos] == b'e' {
+                if input[pos] == b'e' {
                     break;
                 }
 
@@ -108,9 +115,7 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
             let mut pos = 1;
 
             loop {
-                while pos < input.len()
-                    && matches!(input.as_bytes()[pos], b' ' | b'\n' | b'\r' | b'\t')
-                {
+                while pos < input.len() && matches!(input[pos], b' ' | b'\n' | b'\r' | b'\t') {
                     pos += 1
                 }
 
@@ -118,7 +123,7 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
                     return Err(DecodeError::MissingTerminatingE);
                 }
 
-                if input.as_bytes()[pos] == b'e' {
+                if input[pos] == b'e' {
                     break;
                 }
 
@@ -142,11 +147,11 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
     }
 }
 
-pub fn decode(input: &str) -> Result<BencodeValue, DecodeError> {
+pub fn decode(input: &[u8]) -> Result<BencodeValue, DecodeError> {
     let (value, consumed) = decode_inner(input)?;
 
     let mut remaining = &input[consumed..];
-    while !remaining.is_empty() && matches!(remaining.as_bytes()[0], b' ' | b'\n' | b'\r' | b'\t') {
+    while !remaining.is_empty() && matches!(remaining[0], b' ' | b'\n' | b'\r' | b'\t') {
         remaining = &remaining[1..];
     }
 
