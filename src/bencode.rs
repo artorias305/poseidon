@@ -33,6 +33,12 @@ pub enum BencodeValue {
 }
 
 fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
+    let mut start = 0;
+    while start < input.len() && matches!(input.as_bytes()[start], b' ' | b'\n' | b'\r' | b'\t') {
+        start += 1;
+    }
+    let input = &input[start..];
+
     if input.is_empty() {
         return Err(DecodeError::InvalidValue);
     }
@@ -45,14 +51,17 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
                 .parse::<usize>()
                 .map_err(|_| DecodeError::ParseLength)?;
 
-            let start = colon + 1;
-            let end = start + len;
+            let content_start = colon + 1;
+            let end = content_start + len;
 
             if end > input.len() {
                 return Err(DecodeError::InvalidValue);
             }
 
-            Ok((BencodeValue::String(input[start..end].to_string()), end))
+            Ok((
+                BencodeValue::String(input[content_start..end].to_string()),
+                end + start,
+            ))
         }
 
         b'i' => {
@@ -64,7 +73,7 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
                 .parse::<i64>()
                 .map_err(|_| DecodeError::ParseIntError)?;
 
-            Ok((BencodeValue::Int(value), e + 2))
+            Ok((BencodeValue::Int(value), e + 2 + start))
         }
 
         b'l' => {
@@ -72,6 +81,12 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
             let mut pos = 1;
 
             loop {
+                while pos < input.len()
+                    && matches!(input.as_bytes()[pos], b' ' | b'\n' | b'\r' | b'\t')
+                {
+                    pos += 1
+                }
+
                 if pos >= input.len() {
                     return Err(DecodeError::MissingTerminatingE);
                 }
@@ -85,7 +100,7 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
                 pos += consumed;
             }
 
-            Ok((BencodeValue::List(list), pos + 1))
+            Ok((BencodeValue::List(list), pos + 1 + start))
         }
 
         b'd' => {
@@ -93,6 +108,12 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
             let mut pos = 1;
 
             loop {
+                while pos < input.len()
+                    && matches!(input.as_bytes()[pos], b' ' | b'\n' | b'\r' | b'\t')
+                {
+                    pos += 1
+                }
+
                 if pos >= input.len() {
                     return Err(DecodeError::MissingTerminatingE);
                 }
@@ -114,7 +135,7 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
                 map.insert(key, value);
             }
 
-            Ok((BencodeValue::Map(map), pos + 1))
+            Ok((BencodeValue::Map(map), pos + 1 + start))
         }
 
         _ => Err(DecodeError::InvalidValue),
@@ -124,9 +145,42 @@ fn decode_inner(input: &str) -> Result<(BencodeValue, usize), DecodeError> {
 pub fn decode(input: &str) -> Result<BencodeValue, DecodeError> {
     let (value, consumed) = decode_inner(input)?;
 
-    if consumed != input.len() {
+    let mut remaining = &input[consumed..];
+    while !remaining.is_empty() && matches!(remaining.as_bytes()[0], b' ' | b'\n' | b'\r' | b'\t') {
+        remaining = &remaining[1..];
+    }
+
+    if !remaining.is_empty() {
         return Err(DecodeError::InvalidValue);
     }
 
     Ok(value)
+}
+
+pub fn encode(value: &BencodeValue) -> Vec<u8> {
+    match value {
+        BencodeValue::String(s) => {
+            let mut out = format!("{}:", s.len()).into_bytes();
+            out.extend_from_slice(s.as_bytes());
+            out
+        }
+        BencodeValue::Int(n) => format!("i{}e", n).into_bytes(),
+        BencodeValue::List(list) => {
+            let mut out = vec![b'l'];
+            for item in list {
+                out.extend(encode(item));
+            }
+            out.push(b'e');
+            out
+        }
+        BencodeValue::Map(map) => {
+            let mut out = vec![b'd'];
+            for (k, v) in map {
+                out.extend(encode(&BencodeValue::String(k.clone())));
+                out.extend(encode(v));
+            }
+            out.push(b'e');
+            out
+        }
+    }
 }
