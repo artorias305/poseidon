@@ -1,30 +1,20 @@
 use std::collections::BTreeMap;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum DecodeError {
+    #[error("missing colon")]
     MissingColon,
+    #[error("invalid value")]
     InvalidValue,
+    #[error("could not parse length")]
     ParseLength,
+    #[error("could not parse int")]
     ParseIntError,
+    #[error("missing terminating 'e'")]
     MissingTerminatingE,
+    #[error("invalid UTF-8")]
     InvalidUtf8,
 }
-
-impl std::fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg = match self {
-            DecodeError::MissingColon => "bencoded value missing semicolon",
-            DecodeError::InvalidValue => "invalid bencoded value",
-            DecodeError::ParseLength => "failed to parse bencoded value length",
-            DecodeError::ParseIntError => "failed to parse int",
-            DecodeError::MissingTerminatingE => "couldn't find terminating e",
-            DecodeError::InvalidUtf8 => "invalid utf8",
-        };
-        write!(f, "{}", msg)
-    }
-}
-
-impl std::error::Error for DecodeError {}
 
 #[derive(Debug, PartialEq)]
 pub enum BencodeValue {
