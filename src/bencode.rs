@@ -28,7 +28,7 @@ impl std::error::Error for DecodeError {}
 
 #[derive(Debug, PartialEq)]
 pub enum BencodeValue {
-    String(String),
+    String(Vec<u8>),
     Int(i64),
     List(Vec<BencodeValue>),
     Map(BTreeMap<String, BencodeValue>),
@@ -64,11 +64,10 @@ fn decode_inner(input: &[u8]) -> Result<(BencodeValue, usize), DecodeError> {
                 return Err(DecodeError::InvalidValue);
             }
 
-            let s = std::str::from_utf8(&input[content_start..end])
-                .map_err(|_| DecodeError::InvalidUtf8)?
-                .to_owned();
-
-            Ok((BencodeValue::String(s), end + start))
+            Ok((
+                BencodeValue::String(input[content_start..end].to_vec()),
+                end + start,
+            ))
         }
 
         b'i' => {
@@ -129,7 +128,9 @@ fn decode_inner(input: &[u8]) -> Result<(BencodeValue, usize), DecodeError> {
 
                 let (key, consumed) = decode_inner(&input[pos..])?;
                 let key = match key {
-                    BencodeValue::String(s) => s,
+                    BencodeValue::String(s) => {
+                        String::from_utf8(s).map_err(|_| DecodeError::InvalidUtf8)?
+                    }
                     _ => return Err(DecodeError::InvalidValue),
                 };
                 pos += consumed;
@@ -166,7 +167,7 @@ pub fn encode(value: &BencodeValue) -> Vec<u8> {
     match value {
         BencodeValue::String(s) => {
             let mut out = format!("{}:", s.len()).into_bytes();
-            out.extend_from_slice(s.as_bytes());
+            out.extend_from_slice(s);
             out
         }
         BencodeValue::Int(n) => format!("i{}e", n).into_bytes(),
@@ -181,7 +182,7 @@ pub fn encode(value: &BencodeValue) -> Vec<u8> {
         BencodeValue::Map(map) => {
             let mut out = vec![b'd'];
             for (k, v) in map {
-                out.extend(encode(&BencodeValue::String(k.clone())));
+                out.extend(encode(&BencodeValue::String(k.clone().into())));
                 out.extend(encode(v));
             }
             out.push(b'e');

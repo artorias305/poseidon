@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Commands::Decode { encoded_value } => {
-            let decoded_value = bencode::decode(&encoded_value.as_bytes())?;
+            let decoded_value = bencode::decode(encoded_value.as_bytes())?;
             dbg!(decoded_value);
         }
         Commands::Info { torrent_file } => torrent::info(&torrent_file),

@@ -8,7 +8,7 @@ pub fn info(file: &str) {
 
     if let BencodeValue::Map(top) = decoded_file {
         if let Some(BencodeValue::String(s)) = top.get("announce") {
-            println!("Tracker URL: {}", s);
+            println!("Tracker URL: {}", String::from_utf8_lossy(s));
         }
 
         if let Some(info) = top.get("info") {
@@ -16,13 +16,29 @@ pub fn info(file: &str) {
                 if let Some(BencodeValue::Int(n)) = info_map.get("length") {
                     println!("Length: {}", n);
                 }
-            }
 
-            let encoded_info = bencode::encode(info);
-            let mut hasher = Sha1::new();
-            hasher.update(&encoded_info);
-            let hash = hasher.finalize();
-            println!("Info Hash: {}", hex::encode(hash));
+                let encoded_info = bencode::encode(info);
+                let mut hasher = Sha1::new();
+                hasher.update(&encoded_info);
+                let hash = hasher.finalize();
+                println!("Info Hash: {}", hex::encode(hash));
+
+                if let Some(BencodeValue::Int(n)) = info_map.get("piece length") {
+                    println!("Piece Length: {}", n);
+                }
+
+                if let Some(BencodeValue::String(pieces)) = info_map.get("pieces") {
+                    let pieces: Vec<String> = pieces
+                        .chunks(20)
+                        .map(hex::encode)
+                        .collect();
+
+                    println!("Piece Hashes:");
+                    for piece in pieces {
+                        println!("{piece}");
+                    }
+                }
+            }
         }
     }
 }
