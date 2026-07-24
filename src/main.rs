@@ -18,6 +18,7 @@ enum DecodeBencodeError {
     InvalidValue,
     ParseLength,
     ParseIntError,
+    MissingTerminatingE,
 }
 
 impl std::fmt::Display for DecodeBencodeError {
@@ -27,6 +28,7 @@ impl std::fmt::Display for DecodeBencodeError {
             DecodeBencodeError::InvalidValue => "invalid bencoded value",
             DecodeBencodeError::ParseLength => "failed to parse bencoded value length",
             DecodeBencodeError::ParseIntError => "failed to parse int",
+            DecodeBencodeError::MissingTerminatingE => "couldn't find terminating e",
         };
         write!(f, "{}", msg)
     }
@@ -78,7 +80,10 @@ fn decode_bencode(bencoded_value: &str) -> Result<BencodeValue, DecodeBencodeErr
             bencoded_value[start..start + length].to_string(),
         ))
     } else if first_char == 'i' && bencoded_value.ends_with('e') {
-        let value = bencoded_value[1..bencoded_value.len() - 1]
+        let e_index = bencoded_value[1..]
+            .find('e')
+            .ok_or(DecodeBencodeError::MissingTerminatingE)?;
+        let value = bencoded_value[1..1 + e_index]
             .parse::<i64>()
             .map_err(|_| DecodeBencodeError::ParseIntError)?;
         Ok(BencodeValue::Int(value))
