@@ -24,6 +24,10 @@ async fn main() -> anyhow::Result<()> {
                 println!("{}", peer);
             }
         }
+        Commands::Handshake { torrent_file, peer } => {
+            println!("Torrent: {:?}", torrent_file);
+            println!("Peer: {:?}", peer);
+        }
     }
 
     Ok(())
