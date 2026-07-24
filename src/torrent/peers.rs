@@ -13,21 +13,22 @@ pub async fn peers(file: &str) -> Result<(), PeerError> {
 
     let info = info(file);
 
-    let params = [
-        ("info_hash", info.info_hash),
-        ("peer_id", "thisisthecoolpeeridd".to_string()),
-        ("port", "6881".to_string()),
-        ("uploaded", "0".to_string()),
-        ("downloaded", "0".to_string()),
-        ("left", file_data_as_bytes.len().to_string()),
-        ("compact", "1".to_string()),
-    ];
-
-    let url = reqwest::Url::parse_with_params(&info.tracker_url, &params)
-        .map_err(|_| PeerError::ParseError)?;
+    let info_hash_enc = percent_encode(&info.info_hash_bytes);
+    let url_str = format!(
+        "{}?info_hash={}&peer_id={}&port=6881&uploaded=0&downloaded=0&left={}&compact=1",
+        info.tracker_url,
+        info_hash_enc,
+        "thisisthecoolpeeridd",
+        file_data_as_bytes.len()
+    );
+    let url = reqwest::Url::parse(&url_str).map_err(|_| PeerError::ParseError)?;
 
     let response = reqwest::get(url).await.map_err(|_| PeerError::GetError)?;
-    dbg!(response);
+    dbg!(response.text().await.unwrap());
 
     Ok(())
+}
+
+fn percent_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("%{:02X}", b)).collect()
 }

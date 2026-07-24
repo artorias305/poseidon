@@ -7,6 +7,7 @@ pub struct TorrentInfo {
     pub tracker_url: String,
     pub length: usize,
     pub info_hash: String,
+    pub info_hash_bytes: Vec<u8>,
     pub piece_length: usize,
     pub piece_hashes: Vec<String>,
 }
@@ -45,6 +46,7 @@ pub fn info(file: &str) -> TorrentInfo {
                 hasher.update(&encoded_info);
                 let hash = hasher.finalize();
                 torrent_info.info_hash = hex::encode(hash);
+                torrent_info.info_hash_bytes = hash.to_vec();
 
                 if let Some(BencodeValue::Int(n)) = info_map.get("piece length") {
                     torrent_info.piece_length = *n as usize;
