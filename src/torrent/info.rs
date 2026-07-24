@@ -28,10 +28,7 @@ pub fn info(file: &str) {
                 }
 
                 if let Some(BencodeValue::String(pieces)) = info_map.get("pieces") {
-                    let pieces: Vec<String> = pieces
-                        .chunks(20)
-                        .map(hex::encode)
-                        .collect();
+                    let pieces: Vec<String> = pieces.chunks(20).map(hex::encode).collect();
 
                     println!("Piece Hashes:");
                     for piece in pieces {
