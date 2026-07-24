@@ -46,7 +46,7 @@ enum BencodeValue {
 impl BencodeValue {
     fn encoded_length(&self) -> usize {
         match self {
-            BencodeValue::String(s) => s.len() + s.chars().count().to_string().len() + 1,
+            BencodeValue::String(s) => s.len() + s.len().to_string().len() + 1,
             BencodeValue::Int(i) => i.to_string().len() + 2,
             BencodeValue::List(list) => {
                 let inner: usize = list.iter().map(|v| v.encoded_length()).sum();
