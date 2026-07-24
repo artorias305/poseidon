@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Subcommand)]
@@ -41,6 +43,7 @@ enum BencodeValue {
     String(String),
     Int(i64),
     List(Vec<BencodeValue>),
+    Map(BTreeMap<String, BencodeValue>),
 }
 
 impl BencodeValue {
@@ -51,6 +54,13 @@ impl BencodeValue {
             BencodeValue::List(list) => {
                 let inner: usize = list.iter().map(|v| v.encoded_length()).sum();
                 inner + 2
+            }
+            BencodeValue::Map(map) => {
+                let total: usize = map
+                    .iter()
+                    .map(|(k, v)| k.len() + k.len().to_string().len() + 1 + v.encoded_length())
+                    .sum();
+                total + 2
             }
         }
     }
@@ -99,6 +109,26 @@ fn decode_bencode(bencoded_value: &str) -> Result<BencodeValue, DecodeBencodeErr
         }
 
         Ok(BencodeValue::List(list))
+    } else if first_char == 'd' && bencoded_value.ends_with('e') {
+        let mut map = BTreeMap::new();
+        let mut pos = 1;
+        let end = bencoded_value.len() - 1;
+
+        while pos < end {
+            let key = match decode_bencode(&bencoded_value[pos..])? {
+                BencodeValue::String(s) => s,
+                _ => return Err(DecodeBencodeError::InvalidValue),
+            };
+
+            pos += key.len() + key.len().to_string().len() + 1;
+
+            let value = decode_bencode(&bencoded_value[pos..])?;
+            pos += value.encoded_length();
+
+            map.insert(key, value);
+        }
+
+        Ok(BencodeValue::Map(map))
     } else {
         Err(DecodeBencodeError::InvalidValue)
     }
