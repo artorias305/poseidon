@@ -1,3 +1,4 @@
+use sha1::Digest;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::torrent;
@@ -20,6 +21,9 @@ pub enum Error {
 
     #[error(transparent)]
     InfoError(#[from] torrent::info::InfoError),
+
+    #[error("hash mismatch: expected {expected}, got {actual}")]
+    HashMismatch { expected: String, actual: String },
 }
 
 /// struct representing a piece message
@@ -35,7 +39,12 @@ struct PieceMessage {
     block: Vec<u8>,
 }
 
-pub async fn download_piece(out_file: &str, file: &str, piece_index: usize) -> Result<(), Error> {
+pub async fn download_piece(
+    out_file: &str,
+    file: &str,
+    piece_index: usize,
+    allow_hash_mismatch: bool,
+) -> Result<(), Error> {
     let peer = torrent::peers(file)
         .await?
         .peers
@@ -101,6 +110,15 @@ pub async fn download_piece(out_file: &str, file: &str, piece_index: usize) -> R
     let mut piece_data = Vec::with_capacity(piece_length);
     for piece in &pieces {
         piece_data.extend_from_slice(&piece.block);
+    }
+
+    let hash = sha1::Sha1::digest(&piece_data);
+    let hash_hex = hex::encode(hash);
+    if hash_hex != info.piece_hashes[piece_index] && !allow_hash_mismatch {
+        return Err(Error::HashMismatch {
+            expected: info.piece_hashes[piece_index].clone(),
+            actual: hash_hex,
+        });
     }
 
     std::fs::write(out_file, &piece_data)?;

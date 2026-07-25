@@ -9,16 +9,19 @@ pub enum Commands {
         /// Bencoded value
         encoded_value: String,
     },
+
     /// Get information about a torrent file
     Info {
         /// Path to the torrent file
         torrent_file: String,
     },
+
     /// Get the peers from a torrent file
     Peers {
         /// Path to the torrent file
         torrent_file: String,
     },
+
     /// Establish a TCP connection with a peer and complete a handshake
     Handshake {
         /// Path to the torrent file
@@ -27,6 +30,7 @@ pub enum Commands {
         #[arg(value_name = "peer_ip:peer_port")]
         peer: SocketAddr,
     },
+
     /// Download a piece
     DownloadPiece {
         /// Output file
@@ -36,6 +40,21 @@ pub enum Commands {
         torrent_file: String,
         /// Piece index
         piece_index: usize,
+        /// Skip piece hash verification
+        #[arg(long)]
+        allow_hash_mismatch: bool,
+    },
+
+    /// Download a file
+    Download {
+        #[arg(short, long)]
+        /// Output file
+        output: String,
+        /// Path to the torrent file
+        torrent_file: String,
+        /// Skip piece hash verification
+        #[arg(long)]
+        allow_hash_mismatch: bool,
     },
 }
 

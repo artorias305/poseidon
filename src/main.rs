@@ -33,8 +33,17 @@ async fn main() -> anyhow::Result<()> {
             output,
             torrent_file,
             piece_index,
+            allow_hash_mismatch,
         } => {
-            torrent::download_piece(&output, &torrent_file, piece_index).await?;
+            torrent::download_piece(&output, &torrent_file, piece_index, allow_hash_mismatch)
+                .await?;
+        }
+        Commands::Download {
+            output,
+            torrent_file,
+            allow_hash_mismatch,
+        } => {
+            unimplemented!();
         }
     }
 
