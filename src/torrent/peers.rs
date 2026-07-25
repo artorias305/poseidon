@@ -1,5 +1,6 @@
 use crate::{
     bencode::{self, BencodeValue},
+    global::PEER_ID,
     torrent::{info, utils},
 };
 
@@ -52,9 +53,10 @@ pub async fn peers(file: &str) -> Result<PeerResponse, PeerError> {
     let info = info(file);
 
     let info_hash_enc = utils::percent_encode(&info.info_hash_bytes);
+    let peer_id_enc = utils::percent_encode(&PEER_ID[..]);
     let url_str = format!(
         "{}?info_hash={}&peer_id={}&port=6881&uploaded=0&downloaded=0&left={}&compact=1",
-        info.tracker_url, info_hash_enc, "thisisthecoolpeeridd", info.length
+        info.tracker_url, info_hash_enc, peer_id_enc, info.length
     );
     let url = reqwest::Url::parse(&url_str).map_err(|_| PeerError::ParseError)?;
 

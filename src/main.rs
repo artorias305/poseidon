@@ -1,5 +1,6 @@
 mod bencode;
 mod cli;
+mod global;
 mod torrent;
 
 use clap::Parser;
