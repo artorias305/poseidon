@@ -4,14 +4,19 @@ use std::collections::BTreeMap;
 pub enum DecodeError {
     #[error("missing colon")]
     MissingColon,
+
     #[error("invalid value")]
     InvalidValue,
+
     #[error("could not parse length")]
     ParseLength,
+
     #[error("could not parse int")]
     ParseIntError,
+
     #[error("missing terminating 'e'")]
     MissingTerminatingE,
+
     #[error("invalid UTF-8")]
     InvalidUtf8,
 }
