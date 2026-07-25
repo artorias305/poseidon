@@ -35,7 +35,7 @@ pub enum Commands {
         /// Path to the torrent file
         torrent_file: String,
         /// Piece index
-        piece_index: u32,
+        piece_index: usize,
     },
 }
 

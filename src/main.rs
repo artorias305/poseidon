@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
             torrent_file,
             piece_index,
         } => {
-            unimplemented!()
+            torrent::download_piece(&output, &torrent_file, piece_index).await?;
         }
     }
 
