@@ -29,6 +29,13 @@ async fn main() -> anyhow::Result<()> {
             let handshake = torrent::handshake(&torrent_file, peer).await.unwrap();
             println!("Peer ID: {}", hex::encode(&handshake.peer_id));
         }
+        Commands::DownloadPiece {
+            output,
+            torrent_file,
+            piece_index,
+        } => {
+            unimplemented!()
+        }
     }
 
     Ok(())

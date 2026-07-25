@@ -27,6 +27,16 @@ pub enum Commands {
         #[arg(value_name = "peer_ip:peer_port")]
         peer: SocketAddr,
     },
+    /// Download a piece
+    DownloadPiece {
+        /// Output file
+        #[arg(short, long)]
+        output: String,
+        /// Path to the torrent file
+        torrent_file: String,
+        /// Piece index
+        piece_index: u32,
+    },
 }
 
 #[derive(Parser)]
