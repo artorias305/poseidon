@@ -11,9 +11,6 @@ use crate::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandshakeError {
-    #[error("peers not found")]
-    PeersNotFound,
-
     #[error("invalid peer")]
     InvalidPeer,
 
@@ -41,11 +38,14 @@ pub struct Handshake {
     pub peer_id: [u8; 20],
 }
 
-pub async fn handshake(file: &str, peer: SocketAddr) -> Result<Handshake, HandshakeError> {
+pub async fn handshake(
+    file: &str,
+    peer: SocketAddr,
+) -> Result<(TcpStream, Handshake), HandshakeError> {
     let peers = peers(file).await?;
     let info = torrent::info(file)?;
 
-    if !peers.peers.contains(&peer.to_string()) {
+    if !peers.peers.contains(&peer) {
         return Err(HandshakeError::InvalidPeer);
     }
 
@@ -71,11 +71,14 @@ pub async fn handshake(file: &str, peer: SocketAddr) -> Result<Handshake, Handsh
     let info_hash: [u8; 20] = response[28..48].try_into()?;
     let peer_id: [u8; 20] = response[48..68].try_into()?;
 
-    Ok(Handshake {
-        reserved,
-        info_hash,
-        peer_id,
-    })
+    Ok((
+        stream,
+        Handshake {
+            reserved,
+            info_hash,
+            peer_id,
+        },
+    ))
 }
 
 fn valid_response(response: &[u8], info_hash_bytes: &[u8]) -> bool {
