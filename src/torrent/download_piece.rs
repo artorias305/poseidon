@@ -34,7 +34,7 @@ pub enum Error {
 
 pub async fn connect_to_peer(
     file: &str,
-) -> Result<(TcpStream, torrent::info::TorrentInfo), Error> {
+) -> Result<(TcpStream, torrent::info::TorrentInfo, Vec<u8>), Error> {
     let peer = torrent::peers(file)
         .await?
         .peers
@@ -42,43 +42,50 @@ pub async fn connect_to_peer(
         .ok_or(Error::NoPeersAvailable)?
         .clone();
 
-    let (stream, _handshake) = torrent::handshake(file, peer).await?;
+    let (mut stream, _handshake) = torrent::handshake(file, peer).await?;
     let info = torrent::info(file)?;
-    Ok((stream, info))
-}
 
-pub async fn download_piece_data(
-    stream: &mut TcpStream,
-    info: &torrent::info::TorrentInfo,
-    piece_index: usize,
-    allow_hash_mismatch: bool,
-) -> Result<Vec<u8>, Error> {
-    let piece_length = info.piece_length;
-    let num_blocks = (piece_length + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
+    // Read bitfield
     let len = stream.read_u32().await?;
     let id = stream.read_u8().await?;
-
     assert_eq!(id, 5); // id for `bitfield` is 5
 
     let mut bitfield = vec![0u8; (len - 1) as usize];
     stream.read_exact(&mut bitfield).await?;
 
-    let byte_index = piece_index / 8;
-    let bit_offset = 7 - (piece_index % 8);
-    if byte_index >= bitfield.len() || (bitfield[byte_index] >> bit_offset) & 1 == 0 {
-        return Err(Error::PeerMissingPiece(piece_index));
-    }
-
+    // Send interested
     let interested = [0, 0, 0, 1, 2];
     stream.write_all(&interested).await?;
 
+    // Read unchoke
     let _len = stream.read_u32().await?;
     let id = stream.read_u8().await?;
-
     assert_eq!(id, 1); // id for `unchoke` is 1
 
-    let mut pieces: Vec<Vec<u8>> = Vec::with_capacity(num_blocks);
+    Ok((stream, info, bitfield))
+}
+
+pub fn peer_has_piece(bitfield: &[u8], piece_index: usize) -> bool {
+    let byte_index = piece_index / 8;
+    let bit_offset = 7 - (piece_index % 8);
+    byte_index < bitfield.len() && (bitfield[byte_index] >> bit_offset) & 1 == 1
+}
+
+pub async fn download_piece_data(
+    stream: &mut TcpStream,
+    info: &torrent::info::TorrentInfo,
+    bitfield: &[u8],
+    piece_index: usize,
+    allow_hash_mismatch: bool,
+) -> Result<Vec<u8>, Error> {
+    if !peer_has_piece(bitfield, piece_index) {
+        return Err(Error::PeerMissingPiece(piece_index));
+    }
+
+    let piece_length = info.piece_length;
+    let num_blocks = (piece_length + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    let mut blocks: Vec<Vec<u8>> = Vec::with_capacity(num_blocks);
 
     for i in 0..num_blocks {
         let begin = i * BLOCK_SIZE;
@@ -102,11 +109,11 @@ pub async fn download_piece_data(
         let mut block = vec![0u8; (len - 1) as usize];
         stream.read_exact(&mut block).await?;
 
-        pieces.push(block);
+        blocks.push(block);
     }
 
     let mut piece_data = Vec::with_capacity(piece_length);
-    for block in &pieces {
+    for block in &blocks {
         piece_data.extend_from_slice(block);
     }
 
@@ -128,8 +135,10 @@ pub async fn download_piece(
     piece_index: usize,
     allow_hash_mismatch: bool,
 ) -> Result<(), Error> {
-    let (mut stream, info) = connect_to_peer(file).await?;
-    let piece_data = download_piece_data(&mut stream, &info, piece_index, allow_hash_mismatch).await?;
+    let (mut stream, info, bitfield) = connect_to_peer(file).await?;
+    let piece_data =
+        download_piece_data(&mut stream, &info, &bitfield, piece_index, allow_hash_mismatch)
+            .await?;
     std::fs::write(out_file, &piece_data)?;
     Ok(())
 }
