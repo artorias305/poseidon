@@ -10,6 +10,7 @@ pub struct TorrentInfo {
     pub info_hash_bytes: Vec<u8>,
     pub piece_length: usize,
     pub piece_hashes: Vec<String>,
+    pub num_pieces: usize,
 }
 
 impl TorrentInfo {
@@ -67,5 +68,9 @@ pub fn info(file: &str) -> Result<TorrentInfo, InfoError> {
             }
         }
     }
+
+    torrent_info.num_pieces =
+        (torrent_info.length + torrent_info.piece_length - 1) / torrent_info.piece_length;
+
     Ok(torrent_info)
 }

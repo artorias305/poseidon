@@ -1,5 +1,8 @@
 use sha1::Digest;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 use crate::torrent;
 
@@ -24,27 +27,14 @@ pub enum Error {
 
     #[error("hash mismatch: expected {expected}, got {actual}")]
     HashMismatch { expected: String, actual: String },
+
+    #[error("peer does not have piece {0}")]
+    PeerMissingPiece(usize),
 }
 
-/// struct representing a piece message
-#[allow(dead_code)]
-struct PieceMessage {
-    /// The zero-based piece index
-    index: usize,
-
-    /// The zero-based byte offset within the piece
-    begin: usize,
-
-    /// The data for the piece, usually 2^14 bytes long
-    block: Vec<u8>,
-}
-
-pub async fn download_piece(
-    out_file: &str,
+pub async fn connect_to_peer(
     file: &str,
-    piece_index: usize,
-    allow_hash_mismatch: bool,
-) -> Result<(), Error> {
+) -> Result<(TcpStream, torrent::info::TorrentInfo), Error> {
     let peer = torrent::peers(file)
         .await?
         .peers
@@ -52,11 +42,19 @@ pub async fn download_piece(
         .ok_or(Error::NoPeersAvailable)?
         .clone();
 
+    let (stream, _handshake) = torrent::handshake(file, peer).await?;
     let info = torrent::info(file)?;
+    Ok((stream, info))
+}
+
+pub async fn download_piece_data(
+    stream: &mut TcpStream,
+    info: &torrent::info::TorrentInfo,
+    piece_index: usize,
+    allow_hash_mismatch: bool,
+) -> Result<Vec<u8>, Error> {
     let piece_length = info.piece_length;
     let num_blocks = (piece_length + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
-    let (mut stream, _handshake) = torrent::handshake(file, peer).await?;
 
     let len = stream.read_u32().await?;
     let id = stream.read_u8().await?;
@@ -66,6 +64,12 @@ pub async fn download_piece(
     let mut bitfield = vec![0u8; (len - 1) as usize];
     stream.read_exact(&mut bitfield).await?;
 
+    let byte_index = piece_index / 8;
+    let bit_offset = 7 - (piece_index % 8);
+    if byte_index >= bitfield.len() || (bitfield[byte_index] >> bit_offset) & 1 == 0 {
+        return Err(Error::PeerMissingPiece(piece_index));
+    }
+
     let interested = [0, 0, 0, 1, 2];
     stream.write_all(&interested).await?;
 
@@ -74,7 +78,7 @@ pub async fn download_piece(
 
     assert_eq!(id, 1); // id for `unchoke` is 1
 
-    let mut pieces: Vec<PieceMessage> = Vec::with_capacity(num_blocks);
+    let mut pieces: Vec<Vec<u8>> = Vec::with_capacity(num_blocks);
 
     for i in 0..num_blocks {
         let begin = i * BLOCK_SIZE;
@@ -95,21 +99,15 @@ pub async fn download_piece(
 
         assert_eq!(id, 7); // id for `piece` is 7
 
-        let mut piece_message = vec![0u8; (len - 1) as usize];
-        stream.read_exact(&mut piece_message).await?;
+        let mut block = vec![0u8; (len - 1) as usize];
+        stream.read_exact(&mut block).await?;
 
-        let piece = PieceMessage {
-            index: piece_index,
-            begin,
-            block: piece_message,
-        };
-
-        pieces.push(piece);
+        pieces.push(block);
     }
 
     let mut piece_data = Vec::with_capacity(piece_length);
-    for piece in &pieces {
-        piece_data.extend_from_slice(&piece.block);
+    for block in &pieces {
+        piece_data.extend_from_slice(block);
     }
 
     let hash = sha1::Sha1::digest(&piece_data);
@@ -121,7 +119,17 @@ pub async fn download_piece(
         });
     }
 
-    std::fs::write(out_file, &piece_data)?;
+    Ok(piece_data)
+}
 
+pub async fn download_piece(
+    out_file: &str,
+    file: &str,
+    piece_index: usize,
+    allow_hash_mismatch: bool,
+) -> Result<(), Error> {
+    let (mut stream, info) = connect_to_peer(file).await?;
+    let piece_data = download_piece_data(&mut stream, &info, piece_index, allow_hash_mismatch).await?;
+    std::fs::write(out_file, &piece_data)?;
     Ok(())
 }

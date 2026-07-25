@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
             torrent_file,
             allow_hash_mismatch,
         } => {
-            unimplemented!();
+            torrent::download(&output, &torrent_file, allow_hash_mismatch).await?;
         }
     }
 
