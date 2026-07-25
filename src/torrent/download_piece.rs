@@ -106,7 +106,11 @@ pub async fn download_piece_data(
 
         assert_eq!(id, 7); // id for `piece` is 7
 
-        let mut block = vec![0u8; (len - 1) as usize];
+        // Read and discard the 4-byte piece index and 4-byte begin offset
+        let mut buf = [0u8; 8];
+        stream.read_exact(&mut buf).await?;
+
+        let mut block = vec![0u8; (len - 1 - 8) as usize];
         stream.read_exact(&mut block).await?;
 
         blocks.push(block);
