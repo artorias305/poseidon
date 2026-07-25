@@ -42,8 +42,16 @@ pub async fn connect_to_peer(
         .ok_or(Error::NoPeersAvailable)?
         .clone();
 
-    let (mut stream, _handshake) = torrent::handshake(file, peer).await?;
+    let (stream, bitfield) = connect_to_peer_with_peer(file, &peer).await?;
     let info = torrent::info(file)?;
+    Ok((stream, info, bitfield))
+}
+
+pub async fn connect_to_peer_with_peer(
+    file: &str,
+    peer: &std::net::SocketAddr,
+) -> Result<(TcpStream, Vec<u8>), Error> {
+    let (mut stream, _handshake) = torrent::handshake(file, *peer).await?;
 
     // Read bitfield
     let len = stream.read_u32().await?;
@@ -62,7 +70,7 @@ pub async fn connect_to_peer(
     let id = stream.read_u8().await?;
     assert_eq!(id, 1); // id for `unchoke` is 1
 
-    Ok((stream, info, bitfield))
+    Ok((stream, bitfield))
 }
 
 pub fn peer_has_piece(bitfield: &[u8], piece_index: usize) -> bool {
@@ -82,7 +90,8 @@ pub async fn download_piece_data(
         return Err(Error::PeerMissingPiece(piece_index));
     }
 
-    let piece_length = info.piece_length;
+    let last_piece_len = info.length - piece_index * info.piece_length;
+    let piece_length = std::cmp::min(info.piece_length, last_piece_len);
     let num_blocks = (piece_length + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     let mut blocks: Vec<Vec<u8>> = Vec::with_capacity(num_blocks);
