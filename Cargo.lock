@@ -889,6 +889,7 @@ dependencies = [
  "anyhow",
  "clap",
  "hex",
+ "rand",
  "reqwest",
  "sha1",
  "thiserror 1.0.69",
