@@ -25,9 +25,17 @@ impl TorrentInfo {
     }
 }
 
-pub fn info(file: &str) -> TorrentInfo {
-    let file_data_as_bytes = std::fs::read(file).unwrap();
-    let decoded_file = bencode::decode(&file_data_as_bytes).unwrap();
+#[derive(Debug, thiserror::Error)]
+pub enum InfoError {
+    #[error(transparent)]
+    DecodeError(#[from] bencode::DecodeError),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+pub fn info(file: &str) -> Result<TorrentInfo, InfoError> {
+    let file_data_as_bytes = std::fs::read(file)?;
+    let decoded_file = bencode::decode(&file_data_as_bytes)?;
     let mut torrent_info = TorrentInfo::default();
 
     if let BencodeValue::Map(top) = decoded_file {
@@ -59,5 +67,5 @@ pub fn info(file: &str) -> TorrentInfo {
             }
         }
     }
-    torrent_info
+    Ok(torrent_info)
 }

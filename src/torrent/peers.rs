@@ -1,15 +1,25 @@
 use crate::{
     bencode::{self, BencodeValue},
     global::PEER_ID,
-    torrent::{info, utils},
+    torrent::{self, info, utils},
 };
 
 #[derive(Debug, thiserror::Error)]
 pub enum PeerError {
-    #[error("failed to parse URL")]
-    ParseError,
-    #[error("request failed")]
-    GetError,
+    #[error(transparent)]
+    Url(#[from] url::ParseError),
+
+    #[error(transparent)]
+    Decode(#[from] bencode::DecodeError),
+
+    #[error(transparent)]
+    GetError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    InfoError(#[from] torrent::info::InfoError),
+
+    #[error("tracker returned an invalid compact peer list")]
+    InvalidPeerList,
 }
 
 #[derive(Default, Debug)]
@@ -19,7 +29,7 @@ pub struct PeerResponse {
 }
 
 impl PeerResponse {
-    fn from_bytes(raw: &[u8]) -> Result<Self, bencode::DecodeError> {
+    fn from_bytes(raw: &[u8]) -> Result<Self, PeerError> {
         let mut response = PeerResponse::default();
 
         if let bencode::BencodeValue::Map(map) = bencode::decode(raw)? {
@@ -28,6 +38,9 @@ impl PeerResponse {
             }
 
             if let Some(BencodeValue::String(peers)) = map.get("peers") {
+                if peers.len() % 6 != 0 {
+                    return Err(PeerError::InvalidPeerList);
+                }
                 let peers: Vec<String> = peers
                     .chunks(6)
                     .map(|chunk| {
@@ -50,7 +63,7 @@ impl PeerResponse {
 }
 
 pub async fn peers(file: &str) -> Result<PeerResponse, PeerError> {
-    let info = info(file);
+    let info = info(file)?;
 
     let info_hash_enc = utils::percent_encode(&info.info_hash_bytes);
     let peer_id_enc = utils::percent_encode(&PEER_ID[..]);
@@ -58,11 +71,11 @@ pub async fn peers(file: &str) -> Result<PeerResponse, PeerError> {
         "{}?info_hash={}&peer_id={}&port=6881&uploaded=0&downloaded=0&left={}&compact=1",
         info.tracker_url, info_hash_enc, peer_id_enc, info.length
     );
-    let url = reqwest::Url::parse(&url_str).map_err(|_| PeerError::ParseError)?;
+    let url = reqwest::Url::parse(&url_str)?;
 
-    let response = reqwest::get(url).await.map_err(|_| PeerError::GetError)?;
-    let raw = response.bytes().await.map_err(|_| PeerError::GetError)?;
-    let response = PeerResponse::from_bytes(&raw).map_err(|_| PeerError::ParseError)?;
+    let response = reqwest::get(url).await?;
+    let raw = response.bytes().await?;
+    let response = PeerResponse::from_bytes(&raw)?;
 
     Ok(response)
 }

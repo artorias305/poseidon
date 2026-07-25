@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
             dbg!(decoded_value);
         }
         Commands::Info { torrent_file } => {
-            let info = torrent::info(&torrent_file);
+            let info = torrent::info(&torrent_file)?;
             info.print();
         }
         Commands::Peers { torrent_file } => {
@@ -26,8 +26,8 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Commands::Handshake { torrent_file, peer } => {
-            let handshake = torrent::handshake(&torrent_file, peer).await.unwrap();
-            println!("Peer ID: {}", hex::encode(&handshake.peer_id));
+            let handshake = torrent::handshake(&torrent_file, peer).await?;
+            println!("Peer ID: {}", hex::encode(handshake.peer_id));
         }
         Commands::DownloadPiece {
             output,

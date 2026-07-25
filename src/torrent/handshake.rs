@@ -13,14 +13,24 @@ use crate::{
 pub enum HandshakeError {
     #[error("peers not found")]
     PeersNotFound,
+
     #[error("invalid peer")]
     InvalidPeer,
-    #[error("connection error")]
-    ConnectionError,
-    #[error("write error")]
-    WriteError,
-    #[error("read error")]
-    ReadError,
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    InfoError(#[from] torrent::info::InfoError),
+
+    #[error(transparent)]
+    SliceConversion(#[from] std::array::TryFromSliceError),
+
+    #[error(transparent)]
+    PeerError(#[from] torrent::peers::PeerError),
+
+    #[error("invalid handshake response")]
+    InvalidResponse,
 }
 
 #[derive(Debug)]
@@ -32,18 +42,14 @@ pub struct Handshake {
 }
 
 pub async fn handshake(file: &str, peer: SocketAddr) -> Result<Handshake, HandshakeError> {
-    let peers = peers(file)
-        .await
-        .map_err(|_| HandshakeError::PeersNotFound)?;
-    let info = torrent::info(file);
+    let peers = peers(file).await?;
+    let info = torrent::info(file)?;
 
     if !peers.peers.contains(&peer.to_string()) {
         return Err(HandshakeError::InvalidPeer);
     }
 
-    let mut stream = TcpStream::connect(peer)
-        .await
-        .map_err(|_| HandshakeError::ConnectionError)?;
+    let mut stream = TcpStream::connect(peer).await?;
 
     let mut handshake = Vec::with_capacity(68);
     handshake.push(19);
@@ -51,24 +57,19 @@ pub async fn handshake(file: &str, peer: SocketAddr) -> Result<Handshake, Handsh
     handshake.extend_from_slice(&[0u8; 8]);
     handshake.extend_from_slice(&info.info_hash_bytes);
     handshake.extend_from_slice(&PEER_ID[..]);
-    stream
-        .write_all(&handshake)
-        .await
-        .map_err(|_| HandshakeError::WriteError)?;
+    stream.write_all(&handshake).await?;
 
     let mut response = [0u8; 68];
-    stream
-        .read_exact(&mut response)
-        .await
-        .map_err(|_| HandshakeError::ReadError)?;
+    stream.read_exact(&mut response).await?;
 
     if !valid_response(&response, &info.info_hash_bytes) {
-        return Err(HandshakeError::ConnectionError);
+        return Err(HandshakeError::InvalidResponse);
     }
 
-    let reserved: [u8; 8] = response[20..28].try_into().unwrap();
-    let info_hash: [u8; 20] = response[28..48].try_into().unwrap();
-    let peer_id: [u8; 20] = response[48..68].try_into().unwrap();
+    // NOTE: The errors here should never occur, just avoiding unwrap
+    let reserved: [u8; 8] = response[20..28].try_into()?;
+    let info_hash: [u8; 20] = response[28..48].try_into()?;
+    let peer_id: [u8; 20] = response[48..68].try_into()?;
 
     Ok(Handshake {
         reserved,
@@ -90,5 +91,5 @@ fn valid_response(response: &[u8], info_hash_bytes: &[u8]) -> bool {
         return false;
     }
 
-    return true;
+    true
 }
