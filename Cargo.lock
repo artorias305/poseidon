@@ -894,6 +894,7 @@ dependencies = [
  "sha1",
  "thiserror 1.0.69",
  "tokio",
+ "url",
 ]
 
 [[package]]
