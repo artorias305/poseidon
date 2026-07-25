@@ -1,3 +1,5 @@
+use std::net::{Ipv4Addr, SocketAddr};
+
 use crate::{
     bencode::{self, BencodeValue},
     global::PEER_ID,
@@ -25,7 +27,7 @@ pub enum PeerError {
 #[derive(Default, Debug)]
 pub struct PeerResponse {
     interval: usize,
-    pub peers: Vec<String>,
+    pub peers: Vec<SocketAddr>,
 }
 
 impl PeerResponse {
@@ -41,19 +43,18 @@ impl PeerResponse {
                 if peers.len() % 6 != 0 {
                     return Err(PeerError::InvalidPeerList);
                 }
-                let peers: Vec<String> = peers
+
+                let peers: Vec<SocketAddr> = peers
                     .chunks(6)
                     .map(|chunk| {
-                        format!(
-                            "{}.{}.{}.{}:{}",
-                            chunk[0],
-                            chunk[1],
-                            chunk[2],
-                            chunk[3],
-                            u16::from_be_bytes([chunk[4], chunk[5]])
+                        (
+                            Ipv4Addr::new(chunk[0], chunk[1], chunk[2], chunk[3]),
+                            u16::from_be_bytes([chunk[4], chunk[5]]),
                         )
+                            .into()
                     })
                     .collect();
+
                 response.peers = peers;
             }
         }
