@@ -26,8 +26,8 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Commands::Handshake { torrent_file, peer } => {
-            println!("Torrent: {:?}", torrent_file);
-            println!("Peer: {:?}", peer);
+            let handshake = torrent::handshake(&torrent_file, peer).await.unwrap();
+            println!("Peer ID: {}", hex::encode(&handshake.peer_id));
         }
     }
 
