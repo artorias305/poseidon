@@ -1,6 +1,6 @@
 use crate::{
     bencode::{self, BencodeValue},
-    torrent::info,
+    torrent::{info, utils},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -51,7 +51,7 @@ impl PeerResponse {
 pub async fn peers(file: &str) -> Result<PeerResponse, PeerError> {
     let info = info(file);
 
-    let info_hash_enc = percent_encode(&info.info_hash_bytes);
+    let info_hash_enc = utils::percent_encode(&info.info_hash_bytes);
     let url_str = format!(
         "{}?info_hash={}&peer_id={}&port=6881&uploaded=0&downloaded=0&left={}&compact=1",
         info.tracker_url, info_hash_enc, "thisisthecoolpeeridd", info.length
@@ -63,8 +63,4 @@ pub async fn peers(file: &str) -> Result<PeerResponse, PeerError> {
     let response = PeerResponse::from_bytes(&raw).map_err(|_| PeerError::ParseError)?;
 
     Ok(response)
-}
-
-fn percent_encode(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("%{:02X}", b)).collect()
 }
