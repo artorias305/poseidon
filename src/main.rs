@@ -1,6 +1,7 @@
 mod bencode;
 mod cli;
 mod global;
+mod magnet;
 mod torrent;
 
 use clap::Parser;
@@ -44,6 +45,11 @@ async fn main() -> anyhow::Result<()> {
             allow_hash_mismatch,
         } => {
             torrent::download(&output, &torrent_file, allow_hash_mismatch).await?;
+        }
+
+        Commands::MagnetParse { magnet_url } => {
+            let info = magnet::parse(&magnet_url)?;
+            info.print();
         }
     }
 

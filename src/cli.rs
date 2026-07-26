@@ -56,6 +56,12 @@ pub enum Commands {
         #[arg(long)]
         allow_hash_mismatch: bool,
     },
+
+    /// Parse a Magnet url
+    MagnetParse {
+        /// Magnet url to parse
+        magnet_url: String,
+    },
 }
 
 #[derive(Parser)]
