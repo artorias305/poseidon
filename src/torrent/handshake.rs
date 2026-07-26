@@ -43,6 +43,7 @@ pub async fn handshake(
     peer: SocketAddr,
 ) -> Result<(TcpStream, Handshake), HandshakeError> {
     let info = torrent::info(file)?;
+    let peers = peers(&info.tracker_url, &info.info_hash_bytes, info.length).await?;
 
     if !peers.peers.contains(&peer) {
         return Err(HandshakeError::InvalidPeer);
@@ -80,7 +81,7 @@ pub async fn handshake(
     ))
 }
 
-fn valid_response(response: &[u8], info_hash_bytes: &[u8]) -> bool {
+pub fn valid_response(response: &[u8], info_hash_bytes: &[u8]) -> bool {
     if response[0] != 19 {
         return false;
     }

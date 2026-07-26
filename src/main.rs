@@ -48,10 +48,12 @@ async fn main() -> anyhow::Result<()> {
         } => {
             torrent::download(&output, &torrent_file, allow_hash_mismatch).await?;
         }
-
         Commands::MagnetParse { magnet_url } => {
             let info = magnet::parse(&magnet_url)?;
             info.print();
+        }
+        Commands::MagnetHandshake { magnet_url } => {
+            magnet::handshake(&magnet_url).await?;
         }
     }
 

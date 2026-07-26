@@ -62,6 +62,12 @@ pub enum Commands {
         /// Magnet url to parse
         magnet_url: String,
     },
+
+    /// Handshake a magnet url
+    MagnetHandshake {
+        /// Magnet url to contact
+        magnet_url: String,
+    },
 }
 
 #[derive(Parser)]
