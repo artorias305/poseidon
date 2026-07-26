@@ -42,7 +42,6 @@ pub async fn handshake(
     file: &str,
     peer: SocketAddr,
 ) -> Result<(TcpStream, Handshake), HandshakeError> {
-    let peers = peers(file).await?;
     let info = torrent::info(file)?;
 
     if !peers.peers.contains(&peer) {

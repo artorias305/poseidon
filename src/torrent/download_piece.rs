@@ -35,7 +35,8 @@ pub enum Error {
 pub async fn connect_to_peer(
     file: &str,
 ) -> Result<(TcpStream, torrent::info::TorrentInfo, Vec<u8>), Error> {
-    let peer = torrent::peers(file)
+    let info = torrent::info(file)?;
+    let peer = torrent::peers(&info.tracker_url, &info.info_hash_bytes, info.length)
         .await?
         .peers
         .first()

@@ -19,7 +19,7 @@ pub enum Error {
 
 pub async fn download(out_file: &str, file: &str, allow_hash_mismatch: bool) -> Result<(), Error> {
     let info = torrent::info(file)?;
-    let all_peers = torrent::peers(file).await?.peers;
+    let all_peers = torrent::peers(&info.tracker_url, &info.info_hash_bytes, info.length).await?.peers;
 
     let mut file_data: Vec<Option<Vec<u8>>> = vec![None; info.num_pieces];
     let mut peer_idx = 0;

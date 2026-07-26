@@ -21,7 +21,9 @@ async fn main() -> anyhow::Result<()> {
             info.print();
         }
         Commands::Peers { torrent_file } => {
-            let peer_response = torrent::peers(&torrent_file).await?;
+            let info = torrent::info(&torrent_file)?;
+            let peer_response =
+                torrent::peers(&info.tracker_url, &info.info_hash_bytes, info.length).await?;
             for peer in peer_response.peers {
                 println!("{}", peer);
             }
