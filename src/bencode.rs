@@ -29,7 +29,7 @@ pub enum BencodeValue {
     Map(BTreeMap<String, BencodeValue>),
 }
 
-pub fn decode_inner(input: &[u8]) -> Result<(BencodeValue, usize), DecodeError> {
+fn decode_inner(input: &[u8]) -> Result<(BencodeValue, usize), DecodeError> {
     let mut start = 0;
     while start < input.len() && matches!(input[start], b' ' | b'\n' | b'\r' | b'\t') {
         start += 1;

@@ -3,7 +3,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 use crate::{
     bencode::{self, BencodeValue},
     global::PEER_ID,
-    torrent::{self, info, utils},
+    torrent::{self, utils},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -63,7 +63,11 @@ impl PeerResponse {
     }
 }
 
-pub async fn peers(tracker_url: &str, info_hash_bytes: &[u8], length: usize) -> Result<PeerResponse, PeerError> {
+pub async fn peers(
+    tracker_url: &str,
+    info_hash_bytes: &[u8],
+    length: usize,
+) -> Result<PeerResponse, PeerError> {
     let info_hash_enc = utils::percent_encode(info_hash_bytes);
     let peer_id_enc = utils::percent_encode(&PEER_ID[..]);
     let url_str = format!(
